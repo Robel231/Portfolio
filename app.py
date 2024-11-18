@@ -1,63 +1,64 @@
-from flask import Flask, render_template, request, redirect, flash
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import os
+from flask import Flask, render_template, request, redirect, url_for
+from flask_mail import Mail, Message
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from .env file
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # Required for flash messages
 
+# Load email credentials from environment variables
+sender_email = os.getenv("robelsh30@gmail.com")
+sender_password = os.getenv("aloj qleh qewu ldfz")
 
-@app.route("/")
+# Configuring Flask-Mail for sending emails
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = sender_email
+app.config['MAIL_PASSWORD'] = sender_password
+app.config['MAIL_DEFAULT_SENDER'] = sender_email
+mail = Mail(app)
+
+# Home route
+@app.route('/')
 def home():
-    return render_template("index.html")
+    return render_template('index.html')
 
+# About route
+@app.route('/about')
+def about():
+    return render_template('about.html')
 
-@app.route("/send_email", methods=["POST"])
+# Projects route
+@app.route('/projects')
+def projects():
+    return render_template('projects.html')
+
+# Contact route (GET)
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
+
+# Send email route (POST)
+@app.route('/send_email', methods=['POST'])
 def send_email():
-    # Get form data
-    name = request.form.get("name")
-    email = request.form.get("email")
-    message = request.form.get("message")
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        message = request.form['message']
 
-    # Email configuration
-    sender_email = "robelsh30@gmail.com"  # Replace with your Gmail address
-    sender_password = "aloj qleh qewu ldfz"  # Replace with your app-specific password
-    recipient_email = "robelsh30@gmail.com"  # Your email where messages will be sent
+        # Create a message instance
+        msg = Message(f"New Message from {name}", recipients=[sender_email])
+        msg.body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
 
-    # Email subject and body
-    subject = f"New Contact Message from {name}"
-    body = f"""
-    You have received a new message from your portfolio:
-
-    Name: {name}
-    Email: {email}
-
-    Message:
-    {message}
-    """
-
-    try:
-        # Create the email
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = recipient_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
-
-        # Connect to Gmail's SMTP server and send the email
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()  # Secure the connection
-            server.login(sender_email, sender_password)  # Log in to your Gmail account
-            server.send_message(msg)  # Send the email
-
-        # Success message
-        flash("Your message has been sent successfully!", "success")
-    except Exception as e:
-        # Error message
-        flash(f"An error occurred: {e}", "danger")
-
-    return redirect("/")
-
+        try:
+            # Send email
+            mail.send(msg)
+            return redirect(url_for('contact', message="Message sent successfully!"))
+        except Exception as e:
+            # Handle failure
+            return f"Error: {str(e)}"
 
 if __name__ == "__main__":
     app.run(debug=True)
