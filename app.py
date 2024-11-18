@@ -1,24 +1,29 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for
-from flask_mail import Mail, Message
-from dotenv import load_dotenv
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
 
-load_dotenv()  # Load environment variables from .env file
-
+# Initialize Flask app
 app = Flask(__name__)
 
-# Load email credentials from environment variables
-sender_email = os.getenv("robelsh30@gmail.com")
-sender_password = os.getenv("aloj qleh qewu ldfz")
+# Configure database (using SQLite for simplicity)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contact_messages.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = 'your_secret_key'  # Used for flash messages
+db = SQLAlchemy(app)
 
-# Configuring Flask-Mail for sending emails
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = sender_email
-app.config['MAIL_PASSWORD'] = sender_password
-app.config['MAIL_DEFAULT_SENDER'] = sender_email
-mail = Mail(app)
+# Create a model for storing contact form submissions
+class ContactMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+
+    def __repr__(self):
+        return f'<ContactMessage {self.id}>'
+
+# Create the database tables (if not exist)
+with app.app_context():
+    db.create_all()
 
 # Home route
 @app.route('/')
@@ -40,25 +45,36 @@ def projects():
 def contact():
     return render_template('contact.html')
 
-# Send email route (POST)
-@app.route('/send_email', methods=['POST'])
-def send_email():
+# Send email route (POST) - storing data in DB instead of sending email
+@app.route('/send_message', methods=['POST'])
+def send_message():
     if request.method == 'POST':
         name = request.form['name']
         email = request.form['email']
         message = request.form['message']
 
-        # Create a message instance
-        msg = Message(f"New Message from {name}", recipients=[sender_email])
-        msg.body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
+        # Create a new ContactMessage object
+        new_message = ContactMessage(name=name, email=email, message=message)
 
         try:
-            # Send email
-            mail.send(msg)
-            return redirect(url_for('contact', message="Message sent successfully!"))
+            # Add the message to the database
+            db.session.add(new_message)
+            db.session.commit()
+
+            # Flash a success message and redirect back to the contact page
+            flash("Message sent successfully!", "success")
+            return redirect(url_for('contact'))
+
         except Exception as e:
-            # Handle failure
-            return f"Error: {str(e)}"
+            # Handle failure (flash an error message)
+            flash(f"Error: {str(e)}", "danger")
+            return redirect(url_for('contact'))
+
+# Admin route (GET) - for viewing all messages (optional)
+@app.route('/admin')
+def admin():
+    messages = ContactMessage.query.all()  # Fetch all stored messages from the database
+    return render_template('admin.html', messages=messages)
 
 if __name__ == "__main__":
     app.run(debug=True)
