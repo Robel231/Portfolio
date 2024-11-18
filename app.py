@@ -1,58 +1,46 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, flash
+from flask_mail import Mail, Message
+import os
 
 app = Flask(__name__)
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contact_messages.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'your_secret_key'  # for flashing messages
-db = SQLAlchemy(app)
+# Secret key for session management
+app.secret_key = os.urandom(24)
 
-# Create the database model
-class ContactMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    message = db.Column(db.Text, nullable=False)
+# Flask-Mail configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'robelsh30@gmail.com'  # Replace with your Gmail address
+app.config['MAIL_PASSWORD'] = 'aloj qleh qewu ldfz'  # Replace with your Gmail password
+mail = Mail(app)
 
-    def __repr__(self):
-        return f'<ContactMessage {self.id}>'
-
-# Create database tables (if not exist)
-with app.app_context():
-    db.create_all()
-
-# Home route
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# Contact route (GET)
-@app.route('/contact')
-def contact():
-    return render_template('contact.html')
-
-# Route to handle form submission (POST)
 @app.route('/send_message', methods=['POST'])
 def send_message():
-    if request.method == 'POST':
+    try:
+        # Get data from the form
         name = request.form['name']
         email = request.form['email']
         message = request.form['message']
 
-        # Save the message to the database
-        new_message = ContactMessage(name=name, email=email, message=message)
+        # Create message
+        msg = Message('Contact Form Message', sender=email, recipients=['robelsh30@gmail.com'])
+        msg.body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
 
-        try:
-            db.session.add(new_message)
-            db.session.commit()
-            flash("Message sent successfully!", "success")
-            return redirect(url_for('contact'))
+        # Send email
+        mail.send(msg)
 
-        except Exception as e:
-            flash(f"Error: {str(e)}", "danger")
-            return redirect(url_for('contact'))
+        # Flash success message
+        flash("Your message has been sent successfully!", "success")
+        return render_template("contact.html", thank_you=True)  # Display thank you message
+
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
+        return render_template("contact.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
